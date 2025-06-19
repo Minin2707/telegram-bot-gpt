@@ -1,6 +1,7 @@
 package hicks88.telegram_bot.service;
 
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
+import com.theokanning.openai.completion.chat.ChatCompletionResult;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.service.OpenAiService;
 import hicks88.telegram_bot.config.OpenAIConfig;
@@ -22,28 +23,18 @@ public class RecipeService {
         try {
             OpenAiService service = new OpenAiService(openAIConfig.getApiKey(), Duration.ofSeconds(30));
 
-            String prompt = String.format(
-                    """
-                    Ты — бот-повар. Строго:
-                
-                    1) Если в «Вход:» есть несъедобные слова, верни:
-                    ❌ Ошибка: <список>
-                
-                    2) Иначе сгенерируй ровно 3 рецепта ИСКЛЮЧИТЕЛЬНО из этих ингредиентов.
-                       Допускаются только: соль, перец, вода, растительное масло.
-                
-                    Каждый рецепт:
-                    №N. <Название>
-                    Ингредиенты: <точный список>
-                    Шаги:
-                    1. …
-                    2. …
-                    3. …
-                
-                    Вход: %s
-                    """,
-                    ingredients
-            );
+            String prompt = """
+                            Бот-повар. Правила:
+                            Если в «%s» есть слово вне списка съедобных (овощи, фрукты, ягоды, грибы, мясо, рыба, яйца, молоко, зерно, бобовые, орехи, семена), верни ровно:
+                            ❌ Ошибка: <несъедобные>
+                            Иначе создай 3 рецепта ТОЛЬКО из указанных (+соль, перец, вода, масло):
+                            №1 Название:…
+                            Ингредиенты:…
+                            Шаги:1)…2)…3)
+                            №2…
+                            №3…
+                            """ .formatted(ingredients);
+
 
 
 
@@ -54,7 +45,17 @@ public class RecipeService {
                     .maxTokens(openAIConfig.getMaxTokens())
                     .build();
 
-            String response = service.createChatCompletion(request).getChoices().get(0).getMessage().getContent();
+            ChatCompletionResult result = service.createChatCompletion(request);
+            String response = result.getChoices().get(0).getMessage().getContent();
+
+            if (result.getUsage() != null) {
+                log.info(
+                        "OpenAI token usage - prompt: {}, completion: {}, total: {}",
+                        result.getUsage().getPromptTokens(),
+                        result.getUsage().getCompletionTokens(),
+                        result.getUsage().getTotalTokens()
+                );
+            }
             log.info("Generated recipes for ingredients: {}", ingredients);
             return response;
 
